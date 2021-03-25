@@ -17,17 +17,22 @@ while(i<=45):
   text = re.sub(punctuationRegex, "", text)
   text = nltk.word_tokenize(text)
 
-  for index, item in enumerate(text):
+  parsedItemsWithoutStopWords = []
+
+  for item in text:
     item = stemmer.stem(item)
     if (not (item in stopWords)):
-      if(not (item in dictionary)):
+      parsedItemsWithoutStopWords.append(item)
+  
+  for index, item in enumerate(parsedItemsWithoutStopWords):
+    if(not (item in dictionary)):
         dictionary[item] = {i: [index]}
+    else:
+      if(not (i in dictionary[item])):
+        dictionary[item][i] = [index]
       else:
-        if(not (i in dictionary[item])):
-          dictionary[item][i] = [index]
-        else:
-          dictionary[item][i].append(index)
-  i += 1
+        dictionary[item][i].append(index)
 
+  i += 1
 
 print(dictionary)
