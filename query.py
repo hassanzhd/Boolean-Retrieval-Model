@@ -41,7 +41,13 @@ while(i<=45):
 def singleTermQuery(__term):
   __term = __term.lower()
   stemmedTerm = stemmer.stem(__term)
-  return (dictionary[stemmedTerm])
+
+  documents = []
+
+  for document in dictionary[stemmedTerm]:
+    documents.append(document)
+
+  return (documents)
 
 def ORQuery(__firstTerm, __secondTerm):
   firstTermDocuments = []
