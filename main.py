@@ -158,6 +158,54 @@ def twoTermQuery(__firstTermDocuments, __secondTermDocuments, __operator):
   elif (__operator == 'or'):
     return (ORQuery(__firstTermDocuments, __secondTermDocuments))
 
+def getDocuments(__term):
+  termValue = __term[0]
+  typeOfQuery = __term[1]
+
+  if(typeOfQuery == 'not'):
+    return (NOTQuery(singleTermQuery(termValue)))
+  return (singleTermQuery(termValue))
+
+def getValueFromKey(__term, __key):
+  __term = __term.lower()
+  stemmedTerm = stemmer.stem(__term)
+  return (dictionary.get(stemmedTerm).get(__key))
+
+def proximityQuery(__firstTerm, __secondTerm, __distance):
+  totalDocuments = []
+  i = 0
+  j = 0
+
+  while(i < len(__firstTerm[1]) and j < len(__secondTerm[1])):
+      if (__firstTerm[1][i] == __secondTerm[1][j]):
+        firstTermIndexes = getValueFromKey(__firstTerm[0], __firstTerm[1][i])
+        secondTermIndexes = getValueFromKey(__secondTerm[0], __secondTerm[1][j])
+        k = 0
+        l = 0
+
+        while(k < len(firstTermIndexes) and l < len(secondTermIndexes)):
+          if (secondTermIndexes[l] - firstTermIndexes[k] == __distance):
+            totalDocuments.append(__firstTerm[1][i])
+            break
+          elif (firstTermIndexes[k] < secondTermIndexes[l]):
+            k += 1
+          else:
+            l += 1
+
+        i += 1
+        j += 1
+      elif (__firstTerm[1][i] < __secondTerm[1][j]):
+        i += 1
+      else:
+        j += 1
+
+  return (totalDocuments)
+
+def isProximityQuery(__term):
+  if(__term[0] == '/'):
+    return (True)
+  return (False)
+
 def executeQuery(__query):
   parsedQuery = nltk.word_tokenize(__query)
   documents = []
@@ -166,19 +214,54 @@ def executeQuery(__query):
     documents = singleTermQuery(parsedQuery[0])
   elif (len(parsedQuery) == 2 and isOperatorNOT(parsedQuery[0])):
     documents = NOTQuery(singleTermQuery(parsedQuery[1]))
-  elif (len(parsedQuery) == 3 and isValidOperator([ parsedQuery[1] ])):
-    documents = twoTermQuery(singleTermQuery(parsedQuery[0]), singleTermQuery(parsedQuery[2]), parsedQuery[1])
-  elif (len(parsedQuery) == 4 and (isOperatorNOT(parsedQuery[0]) or isOperatorNOT(parsedQuery[2]))):
-    if (isOperatorNOT(parsedQuery[0])):
-      documents = twoTermQuery(NOTQuery(singleTermQuery(parsedQuery[1])), singleTermQuery(parsedQuery[3]), parsedQuery[2])
-    else:
-      documents = twoTermQuery(singleTermQuery(parsedQuery[0]), NOTQuery(singleTermQuery(parsedQuery[3])), parsedQuery[1])
-  elif (len(parsedQuery) == 5 and isValidOperator([ parsedQuery[1], parsedQuery[3] ])):
-    documents = twoTermQuery(twoTermQuery(singleTermQuery(parsedQuery[0]), singleTermQuery(parsedQuery[2]), parsedQuery[1]), singleTermQuery(parsedQuery[4]), parsedQuery[3])
-  elif (len(parsedQuery) == 5 and isOperatorNOT(parsedQuery[0]) and isOperatorNOT(parsedQuery[3])):
-    documents = twoTermQuery(NOTQuery(singleTermQuery(parsedQuery[1])), NOTQuery(singleTermQuery(parsedQuery[4])), parsedQuery[2])
+  elif (len(parsedQuery) == 3 and isProximityQuery(parsedQuery[2])):
+    documents = proximityQuery((parsedQuery[0], singleTermQuery(parsedQuery[0])),(parsedQuery[1], singleTermQuery(parsedQuery[1])),int(parsedQuery[2][1:]))
+  else:
+    terms = []
+    operators = []
+    i = 0
+
+    while (i < len(parsedQuery)):
+      if (parsedQuery[i] == 'and' or parsedQuery[i] == 'or'):
+        operators.append(parsedQuery[i])
+        i += 1
+      elif (parsedQuery[i] == 'not'):
+        terms.append((parsedQuery[i + 1], 'not'))
+        i += 2
+      else:
+        terms.append((parsedQuery[i], 'actual'))
+        i += 1
+    
+    termDocuments = []
+    i = 0 
+
+    while(i < len(terms)):
+      termDocuments.append(getDocuments(terms[i]))
+      i += 1
+
+    i = 0
+
+    while(len(operators) > 0):
+      operator = operators.pop(0)
+      firstTermDocuments = termDocuments.pop(0)
+      secondTermDocuments = termDocuments.pop(0)
+      termDocuments.insert(0, twoTermQuery(firstTermDocuments, secondTermDocuments, operator))
+      i += 1
+
+    documents = termDocuments[0]
+
+  # elif (len(parsedQuery) == 3 and isValidOperator([ parsedQuery[1] ])):
+  #   documents = twoTermQuery(singleTermQuery(parsedQuery[0]), singleTermQuery(parsedQuery[2]), parsedQuery[1])
+  # elif (len(parsedQuery) == 4 and (isOperatorNOT(parsedQuery[0]) or isOperatorNOT(parsedQuery[2]))):
+  #   if (isOperatorNOT(parsedQuery[0])):
+  #     documents = twoTermQuery(NOTQuery(singleTermQuery(parsedQuery[1])), singleTermQuery(parsedQuery[3]), parsedQuery[2])
+  #   else:
+  #     documents = twoTermQuery(singleTermQuery(parsedQuery[0]), NOTQuery(singleTermQuery(parsedQuery[3])), parsedQuery[1])
+  # elif (len(parsedQuery) == 5 and isValidOperator([ parsedQuery[1], parsedQuery[3] ])):
+  #   documents = twoTermQuery(twoTermQuery(singleTermQuery(parsedQuery[0]), singleTermQuery(parsedQuery[2]), parsedQuery[1]), singleTermQuery(parsedQuery[4]), parsedQuery[3])
+  # elif (len(parsedQuery) == 5 and isOperatorNOT(parsedQuery[0]) and isOperatorNOT(parsedQuery[3])):
+  #   documents = twoTermQuery(NOTQuery(singleTermQuery(parsedQuery[1])), NOTQuery(singleTermQuery(parsedQuery[4])), parsedQuery[2])
   printDocuments(documents)
 
-# executeQuery('not strange and not play')
-
-print(dictionary)
+executeQuery('smiling face /3')
+# print(dictionary)
