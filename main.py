@@ -1,7 +1,7 @@
 import nltk
 import re
 
-class BooleanRetrievalModel:
+class BooleanRetrievalModel: # helper class implementing the model
   def __init__(self):
     self.totalNumberOfDocuments = 50
     self.stopWords = None
@@ -9,46 +9,59 @@ class BooleanRetrievalModel:
     self.stemmer = nltk.stem.porter.PorterStemmer()
     self.invertedIndexFileName = "./index.txt"
     self.stopWordFileName = "./Stopword-List.txt"
+    self.documentsPath = "./ShortStories/{}.txt"
     self.readInvertedIndexOrPreprocess()
 
-  def createInvertedIndex(self):
+  """ returns stop words  """
+  def getStopWordsFromFile(self): 
     fp = open(self.stopWordFileName,'r')
-    self.stopWords = fp.read()
-    self.stopWords = nltk.word_tokenize(self.stopWords)
+    stopWords = fp.read()
+    stopWords = nltk.word_tokenize(stopWords) # converting text to list of tokens
     fp.close()
+    return (stopWords)
 
+  """ returns all normalized tokens of document """
+  def getTokensFromFile(self, __fileName):
     punctuationRegex = "[.,!?:;‘’”“\"]"
-    i = 1
+    fp = open(__fileName, 'r')
+    text = fp.read().lower()  # case folding
+    text = re.sub(punctuationRegex, "", text) # removal of punctuatiom
+    text = re.sub("[-]", " ", text)
+    tokens = nltk.word_tokenize(text) # converting text to list of tokens
+    fp.close()
+    return (tokens)
 
-    while(i<=self.totalNumberOfDocuments):
-      fp = open('./ShortStories/{}.txt'.format(i), 'r')
-      text = fp.read().lower()
-      text = re.sub(punctuationRegex, "", text)
-      text = nltk.word_tokenize(text)
+  """ creates inverted index containing all terms of documents """
+  def createInvertedIndex(self):
+    currentDocument = 1
+    self.stopWords = self.getStopWordsFromFile()
 
-      parsedItemsWithoutStopWords = []
+    while(currentDocument<=self.totalNumberOfDocuments):
+      fileTokens = self.getTokensFromFile(self.documentsPath.format(currentDocument))
 
-      for item in text:
-        item = self.stemmer.stem(item)
-        if (not (item in self.stopWords)):
-          parsedItemsWithoutStopWords.append(item)
-
-      for index, item in enumerate(parsedItemsWithoutStopWords):
-        if(not (item in self.dictionary)):
-            self.dictionary[item] = {i: [index]}
-        else:
-          if(not (i in self.dictionary[item])):
-            self.dictionary[item][i] = [index]
+      for position, word in enumerate(fileTokens):
+        word = self.stemmer.stem(word)
+        if (not (word in self.stopWords)):
+          if(not (word in self.dictionary)):
+              # adds 'word' to dictionary if not present and maps 'currentDocument' and 'position' as value to it
+              self.dictionary[word] = {currentDocument: [position]} 
           else:
-            self.dictionary[item][i].append(index)
+            if(not (currentDocument in self.dictionary[word])):
+              # adds 'currentDocument' and 'position' to existing document dictionary of word
+              self.dictionary[word][currentDocument] = [position]
+            else:
+              # appends postional index of 'currentDocument' for 'word'
+              self.dictionary[word][currentDocument].append(position)
 
-      i += 1
+      currentDocument += 1
 
+  """ writes inverted index to index.txt """
   def writeInvertedIndex(self):
     fp = open(self.invertedIndexFileName, 'w')
     fp.write(str(self.dictionary))
     fp.close()
 
+  """ reads invertedIndex if index.txt exists otherwise creates and writes invertedIndex"""
   def readInvertedIndexOrPreprocess(self):
     try:
       fp = open(self.invertedIndexFileName, 'r')
@@ -64,6 +77,7 @@ class BooleanRetrievalModel:
       return (True)
     return (False)
 
+  """ performs single term query by returning documents of it """
   def singleTermQuery(self, __term):
     __term = __term.lower()
     stemmedTerm = self.stemmer.stem(__term)
@@ -152,12 +166,14 @@ class BooleanRetrievalModel:
       for document in __documents:
         print(document, end=',')
 
+  """ performs a boolean operation on two documents lists provided using __opeartor """
   def twoTermQuery(self, __firstTermDocuments, __secondTermDocuments, __operator):
     if (__operator == 'and'):
       return (self.ANDQuery(__firstTermDocuments, __secondTermDocuments))
     elif (__operator == 'or'):
       return (self.ORQuery(__firstTermDocuments, __secondTermDocuments))
 
+  """ returns documents depending on its type (actual/ not) """
   def getDocuments(self, __term):
     termValue = __term[0]
     typeOfQuery = __term[1]
@@ -166,10 +182,11 @@ class BooleanRetrievalModel:
       return (self.NOTQuery(self.singleTermQuery(termValue)))
     return (self.singleTermQuery(termValue))
 
-  def getValueFromKey(self, __term, __key):
+  """ returns posting list of __term using __documentID  """
+  def getPostingList(self, __term, __documentID):
     __term = __term.lower()
     stemmedTerm = self.stemmer.stem(__term)
-    return (self.dictionary.get(stemmedTerm).get(__key))
+    return (self.dictionary.get(stemmedTerm).get(__documentID))
 
   def proximityQuery(self, __firstTerm, __secondTerm, __distance):
     totalDocuments = []
@@ -178,13 +195,13 @@ class BooleanRetrievalModel:
 
     while(i < len(__firstTerm[1]) and j < len(__secondTerm[1])):
         if (__firstTerm[1][i] == __secondTerm[1][j]):
-          firstTermIndexes = self.getValueFromKey(__firstTerm[0], __firstTerm[1][i])
-          secondTermIndexes = self.getValueFromKey(__secondTerm[0], __secondTerm[1][j])
+          firstTermIndexes = self.getPostingList(__firstTerm[0], __firstTerm[1][i])
+          secondTermIndexes = self.getPostingList(__secondTerm[0], __secondTerm[1][j])
           k = 0
           l = 0
 
           while(k < len(firstTermIndexes) and l < len(secondTermIndexes)):
-            if (secondTermIndexes[l] - firstTermIndexes[k] == __distance):
+            if (((secondTermIndexes[l] - 1) - firstTermIndexes[k] <= __distance) and ((secondTermIndexes[l] - 1) - firstTermIndexes[k] >= 0)):
               totalDocuments.append(__firstTerm[1][i])
               break
             elif (firstTermIndexes[k] < secondTermIndexes[l]):
@@ -206,40 +223,46 @@ class BooleanRetrievalModel:
       return (True)
     return (False)
 
+  """ classifies terms of query into two types (actual/ not) and operators """
+  def classifyTermsAndOperators(self, __parsedQuery):
+    terms = []
+    operators = []
+    i = 0
+    
+    while (i < len(__parsedQuery)):
+      if (__parsedQuery[i] == 'and' or __parsedQuery[i] == 'or'):
+        operators.append(__parsedQuery[i])
+        i += 1
+      elif (__parsedQuery[i] == 'not'):
+        terms.append((__parsedQuery[i + 1], 'not'))
+        i += 2
+      else:
+        terms.append((__parsedQuery[i], 'actual'))
+        i += 1
+    
+    return (terms, operators)
+
+  """ returns documents of __terms """
+  def getTermDocuments(self, __terms):
+    i = 0
+    termDocuments = []
+
+    while(i < len(__terms)):
+      termDocuments.append(self.getDocuments(__terms[i]))
+      i += 1
+    
+    return (termDocuments)
+
   def executeQuery(self, __query):
     parsedQuery = nltk.word_tokenize(__query)
     documents = []
 
-    if (len(parsedQuery) == 1):
-      documents = self.singleTermQuery(parsedQuery[0])
-    elif (len(parsedQuery) == 2 and self.isOperatorNOT(parsedQuery[0])):
-      documents = self.NOTQuery(self.singleTermQuery(parsedQuery[1]))
-    elif (len(parsedQuery) == 3 and self.isProximityQuery(parsedQuery[2])):
+    if (len(parsedQuery) == 3 and self.isProximityQuery(parsedQuery[2])):
       documents = self.proximityQuery((parsedQuery[0], self.singleTermQuery(parsedQuery[0])),(parsedQuery[1], self.singleTermQuery(parsedQuery[1])),int(parsedQuery[2][1:]))
     else:
-      terms = []
-      operators = []
       i = 0
-
-      while (i < len(parsedQuery)):
-        if (parsedQuery[i] == 'and' or parsedQuery[i] == 'or'):
-          operators.append(parsedQuery[i])
-          i += 1
-        elif (parsedQuery[i] == 'not'):
-          terms.append((parsedQuery[i + 1], 'not'))
-          i += 2
-        else:
-          terms.append((parsedQuery[i], 'actual'))
-          i += 1
-      
-      termDocuments = []
-      i = 0 
-
-      while(i < len(terms)):
-        termDocuments.append(self.getDocuments(terms[i]))
-        i += 1
-
-      i = 0
+      terms, operators = self.classifyTermsAndOperators(parsedQuery)
+      termDocuments = self.getTermDocuments(terms)
 
       while(len(operators) > 0):
         operator = operators.pop(0)
@@ -253,4 +276,4 @@ class BooleanRetrievalModel:
     self.printDocuments(documents)
 
 model = BooleanRetrievalModel()
-model.executeQuery('smiling face /3')
+model.executeQuery('ladies and gentleman')
