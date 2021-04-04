@@ -1,2 +1,12 @@
 result
 .vscode
+.DS_Store
+.env
+.flaskenv
+*.pyc
+*.pyo
+env/
+env*
+.pytest_cache/
+__pycache__
+.azure/
