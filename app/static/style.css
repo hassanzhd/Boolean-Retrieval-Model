@@ -56,7 +56,7 @@
 
 .container h1 a:hover {
   text-decoration: none;
-  color: darkgrey;
+  color: darkgray;
   transition: 0.5s;
 }
 
@@ -72,16 +72,20 @@
 .form-fields input {
   margin: 1em;
   width: 50%;
-}
-
-.form-fields input {
-  margin: 1em;
-  width: 50%;
+  height: 70%;
+  padding-left: 10px;
 }
 
 .form-fields button {
-  height: 50%;
+  height: 80%;
   font-weight: bold;
+  width: 5%;
+  border: none;
+  border-radius: 25px;
+  color: black;
+  background-color: darkgray;
+  font-weight: bold;
+  cursor: pointer;
 }
 
 .result p {
